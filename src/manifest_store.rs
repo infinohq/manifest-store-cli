@@ -158,6 +158,10 @@ impl ManifestStore {
         let path = Self::object_path(cloud_provider, environment, name);
         info!("Downloading manifest from {}", path);
 
+        if let Some(dir) = output_path.parent() {
+            tokio::fs::create_dir_all(dir).await?;
+        }
+
         let result = self.store.get(&path).await?;
         let data = result.bytes().await?;
         tokio::fs::write(output_path, &data).await?;
