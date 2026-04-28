@@ -115,6 +115,7 @@ impl ManifestStore {
 
     /// Create a ManifestStore backed by the local filesystem at `root_dir`.
     /// Useful for testing and local development.
+    #[allow(dead_code)]
     pub fn new_local(root_dir: &Path) -> Result<Self, ManifestStoreError> {
         let store = LocalFileSystem::new_with_prefix(root_dir)?;
         Ok(Self {
