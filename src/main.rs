@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
-use manifest_store::ManifestStore;
+use manifest_store::{ManifestStore, ManifestStoreError};
 
 #[derive(Parser)]
 #[command(
@@ -67,22 +67,16 @@ enum Command {
         #[arg(long)]
         environment: String,
     },
+
+    /// Downloads all manifest files from the object store
+    Clone {
+        #[arg(long)]
+        output_dir: PathBuf,
+    },
 }
 
-#[tokio::main]
-async fn main() -> ExitCode {
-    env_logger::init();
-    let cli = Cli::parse();
-
-    let store = match ManifestStore::from_env() {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("Failed to initialize manifest store: {e}");
-            return ExitCode::FAILURE;
-        }
-    };
-
-    let result = match cli.command {
+async fn run_command(cmd: Command, store: ManifestStore) -> Result<(), ManifestStoreError> {
+    match cmd {
         Command::Put {
             cloud_provider,
             environment,
@@ -119,7 +113,34 @@ async fn main() -> ExitCode {
             }
             Err(e) => Err(e),
         },
+        Command::Clone { output_dir } => {
+            let children = store.list_all().await?;
+            for child in children {
+                if let Some(filename) = child.filename() {
+                    let output_path = output_dir.join(filename);
+                    store.raw_get_file(&child, &output_path).await?;
+                }
+            }
+
+            Ok(())
+        }
+    }
+}
+
+#[tokio::main]
+async fn main() -> ExitCode {
+    env_logger::init();
+    let cli = Cli::parse();
+
+    let store = match ManifestStore::from_env() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Failed to initialize manifest store: {e}");
+            return ExitCode::FAILURE;
+        }
     };
+
+    let result = run_command(cli.command, store).await;
 
     match result {
         Ok(()) => ExitCode::SUCCESS,
