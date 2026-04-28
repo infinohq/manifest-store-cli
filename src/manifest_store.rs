@@ -147,6 +147,22 @@ impl ManifestStore {
         Ok(())
     }
 
+    pub async fn raw_get_file(
+        &self,
+        path: &object_store::path::Path,
+        output_path: &Path,
+    ) -> Result<(), ManifestStoreError> {
+        if let Some(dir) = output_path.parent() {
+            tokio::fs::create_dir_all(dir).await?;
+        }
+
+        let result = self.store.get(&path).await?;
+        let data = result.bytes().await?;
+        tokio::fs::write(output_path, &data).await?;
+
+        Ok(())
+    }
+
     /// Download a manifest from the object store to a local file.
     pub async fn get(
         &self,
@@ -158,14 +174,7 @@ impl ManifestStore {
         let path = Self::object_path(cloud_provider, environment, name);
         info!("Downloading manifest from {}", path);
 
-        if let Some(dir) = output_path.parent() {
-            tokio::fs::create_dir_all(dir).await?;
-        }
-
-        let result = self.store.get(&path).await?;
-        let data = result.bytes().await?;
-        tokio::fs::write(output_path, &data).await?;
-
+        self.raw_get_file(&path, output_path).await?;
         debug!("Download complete: {} -> {}", path, output_path.display());
         Ok(())
     }
@@ -205,6 +214,20 @@ impl ManifestStore {
 
         debug!("Found {} manifests under {}", names.len(), prefix);
         Ok(names)
+    }
+
+    /// List all manifests
+    pub async fn list_all(&self) -> Result<Vec<object_store::path::Path>, ManifestStoreError> {
+        info!("Listing all files");
+
+        let mut file_paths = Vec::new();
+        let mut stream = self.store.list(None);
+        while let Some(meta) = stream.try_next().await? {
+            file_paths.push(meta.location);
+        }
+
+        debug!("Found {} files", file_paths.len());
+        Ok(file_paths)
     }
 }
 
