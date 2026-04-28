@@ -2,8 +2,9 @@ name: Build Linux Executable
 
 on:
   push:
-    branches:
-      - main
+    # Sequence of patterns matched against refs/tags
+    tags:
+    - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
 
 jobs:
   build-linux:
@@ -28,3 +29,9 @@ jobs:
           path: target/release/manifest-store-cli
           if-no-files-found: error
 
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: target/release/manifest-store-cli
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
