@@ -11,8 +11,11 @@ mod manifest_store;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+use async_walkdir::WalkDir;
 use clap::{Parser, Subcommand};
+use futures_lite::stream::StreamExt;
 use manifest_store::{ManifestStore, ManifestStoreError};
+use object_store::path::Path as ObjectStorePath;
 
 #[derive(Parser)]
 #[command(
@@ -73,6 +76,12 @@ enum Command {
         #[arg(long)]
         output_dir: PathBuf,
     },
+
+    /// Write all data from a local dir to output_dir
+    Push {
+        #[arg(long)]
+        output_dir: PathBuf,
+    },
 }
 
 async fn run_command(cmd: Command, store: ManifestStore) -> Result<(), ManifestStoreError> {
@@ -122,6 +131,34 @@ async fn run_command(cmd: Command, store: ManifestStore) -> Result<(), ManifestS
                 }
             }
 
+            Ok(())
+        }
+        Command::Push { output_dir } => {
+            let mut files = WalkDir::new(output_dir.clone());
+            loop {
+                match files.next().await {
+                    Some(Ok(entry)) => {
+                        let data = tokio::fs::read(entry.path()).await?;
+                        let entry_path = entry.path();
+                        let stripped_path = entry_path
+                            .strip_prefix(output_dir.clone())
+                            .unwrap_or(entry_path.as_path());
+
+                        let stripped_path = stripped_path
+                            .to_str()
+                            .expect("all paths should be valid unicode");
+
+                        store
+                            .raw_put(&ObjectStorePath::from(stripped_path), data)
+                            .await?;
+                    }
+                    Some(Err(e)) => {
+                        eprintln!("error: {}", e);
+                        break;
+                    }
+                    None => break,
+                }
+            }
             Ok(())
         }
     }

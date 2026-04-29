@@ -127,6 +127,18 @@ impl ManifestStore {
         ObjectStorePath::from(format!("{cloud_provider}/{environment}/{name}"))
     }
 
+    pub async fn raw_put(
+        &self,
+        path: &object_store::path::Path,
+        data: Vec<u8>,
+    ) -> Result<(), ManifestStoreError> {
+        self.store
+            .put(path, PutPayload::from(Bytes::from(data)))
+            .await?;
+
+        Ok(())
+    }
+
     /// Upload a local file to the object store.
     pub async fn put(
         &self,
@@ -139,9 +151,7 @@ impl ManifestStore {
         let path = Self::object_path(cloud_provider, environment, name);
         info!("Uploading manifest to {}", path);
 
-        self.store
-            .put(&path, PutPayload::from(Bytes::from(data)))
-            .await?;
+        self.raw_put(&path, data).await?;
 
         debug!("Upload complete: {}", path);
         Ok(())
