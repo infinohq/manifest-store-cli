@@ -136,6 +136,11 @@ async fn run_command(cmd: Command, store: ManifestStore) -> Result<(), ManifestS
             loop {
                 match files.next().await {
                     Some(Ok(entry)) => {
+                        let file_type = entry.file_type().await?;
+                        if file_type.is_dir() {
+                            continue;
+                        }
+
                         let data = tokio::fs::read(entry.path()).await?;
                         let entry_path = entry.path();
                         let stripped_path = entry_path
