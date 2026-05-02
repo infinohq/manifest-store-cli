@@ -125,10 +125,8 @@ async fn run_command(cmd: Command, store: ManifestStore) -> Result<(), ManifestS
         Command::Clone { output_dir } => {
             let children = store.list_all().await?;
             for child in children {
-                if let Some(filename) = child.filename() {
-                    let output_path = output_dir.join(filename);
-                    store.raw_get_file(&child, &output_path).await?;
-                }
+                let output_path = output_dir.join(child.to_string());
+                store.raw_get_file(&child, &output_path).await?;
             }
 
             Ok(())
